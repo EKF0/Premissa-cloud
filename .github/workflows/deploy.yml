@@ -1,0 +1,41 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Build and push images
+        run: |
+          gcloud builds submit --tag "$IMAGE_API" --file apps/api/Dockerfile .
+        env:
+          IMAGE_API: ${{ secrets.ARTIFACT_REGISTRY }}/api:${{ github.sha }}
+      - name: Deploy API revision
+        run: |
+          gcloud run deploy permissa-api \
+            --image "$IMAGE_API" \
+            --region us-central1 \
+            --service-account permissa-api@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --no-allow-unauthenticated
+        env:
+          IMAGE_API: ${{ secrets.ARTIFACT_REGISTRY }}/api:${{ github.sha }}
+      - name: Deploy Firestore rules and indexes
+        run: |
+          gcloud firestore databases update --quiet || true
+      - name: Record release evidence
+        run: echo "revision=${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,16 @@
+{
+  "name": "@permissa/policy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "lint": "prettier --check src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@permissa/contracts": "*",
+    "zod": "^3.23.8"
+  }
+}

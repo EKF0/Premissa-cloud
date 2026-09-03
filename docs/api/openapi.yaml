@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: PERMISSA API
+  version: 0.1.0
+  description: >-
+    Evidence-gated screenplay clearance research. Responses use RFC 9457 Problem
+    Details on error. All payload schemas are generated from packages/contracts.
+  license:
+    name: AGPL-3.0-only
+servers:
+  - url: https://api.permissa.app/v1
+tags:
+  - name: uploads
+  - name: projects
+  - name: entities
+  - name: runs
+  - name: reviews
+  - name: reports
+  - name: system
+security:
+  - firebaseIdToken: []
+paths:
+  /health:
+    get:
+      tags: [system]
+      security: []
+      summary: Liveness probe
+      responses:
+        "200":
+          description: Service is live
+  /ready:
+    get:
+      tags: [system]
+      security: []
+      summary: Readiness probe
+      responses:
+        "200":
+          description: Dependencies reachable
+  /uploads:
+    post:
+      tags: [uploads]
+      summary: Create a signed upload session
+      responses:
+        "201":
+          description: Signed upload session created
+        "429":
+          $ref: "#/components/responses/Problem"
+  /uploads/{uploadId}/complete:
+    post:
+      tags: [uploads]
+      summary: Complete and validate an upload
+      parameters:
+        - $ref: "#/components/parameters/UploadId"
+      responses:
+        "200":
+          description: Upload accepted
+        "400":
+          $ref: "#/components/responses/Problem"
+  /projects:
+    post:
+      tags: [projects]
+      summary: Create a project
+      responses:
+        "201":
+          description: Project created
+    get:
+      tags: [projects]
+      summary: List projects visible to the caller
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: Cursor page of projects
+  /projects/{projectId}:
+    get:
+      tags: [projects]
+      summary: Load a project
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "200":
+          description: Project
+        "403":
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [projects]
+      summary: Delete a project and all derived content
+      parameters:
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "202":
+          description: Deletion accepted; completes within 24 hours
+  /scripts/{scriptVersionId}/entities:
+    get:
+      tags: [entities]
+      summary: List extracted canonical entities
+      parameters:
+        - $ref: "#/components/parameters/ScriptVersionId"
+      responses:
+        "200":
+          description: Entity register
+  /scripts/{scriptVersionId}/confirm-entities:
+    post:
+      tags: [entities]
+      summary: Confirm the entity register and permit live research
+      parameters:
+        - $ref: "#/components/parameters/ScriptVersionId"
+      responses:
+        "200":
+          description: Register confirmed
+        "409":
+          $ref: "#/components/responses/Problem"
+  /runs:
+    post:
+      tags: [runs]
+      summary: Queue a clearance run
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "202":
+          description: Run queued or existing active run returned
+        "429":
+          $ref: "#/components/responses/Problem"
+  /runs/{runId}:
+    get:
+      tags: [runs]
+      summary: Load run state, budget and checkpoint
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Run
+  /runs/{runId}/cancel:
+    post:
+      tags: [runs]
+      summary: Cancel a run and preserve partial work
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Run cancelled
+  /runs/{runId}/resume:
+    post:
+      tags: [runs]
+      summary: Resume a paused run from its checkpoint
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "202":
+          description: Resume queued
+  /runs/{runId}/budget-requests:
+    post:
+      tags: [runs]
+      summary: Request a budget increase for a paused run
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "201":
+          description: Request submitted for platform admin decision
+  /reviews:
+    post:
+      tags: [reviews]
+      summary: Submit review changes
+      responses:
+        "200":
+          description: Review submitted
+        "412":
+          $ref: "#/components/responses/Problem"
+  /reviewer-invitations:
+    post:
+      tags: [reviews]
+      summary: Create a single-use reviewer invitation link
+      responses:
+        "201":
+          description: Invitation created
+  /reports/{reportId}/pdf:
+    get:
+      tags: [reports]
+      summary: Download an approved clearance packet
+      parameters:
+        - $ref: "#/components/parameters/ReportId"
+      responses:
+        "200":
+          description: PDF stream
+          content:
+            application/pdf: {}
+components:
+  securitySchemes:
+    firebaseIdToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16 }
+    UploadId:
+      name: uploadId
+      in: path
+      required: true
+      schema: { type: string }
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ScriptVersionId:
+      name: scriptVersionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReportId:
+      name: reportId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Problem:
+      description: RFC 9457 Problem Details
+      content:
+        application/problem+json:
+          schema:
+            $ref: "./json-schema/ProblemDetails.json"
